@@ -99,9 +99,10 @@ CREATE TABLE IF NOT EXISTS health_scores (
     support_score     NUMERIC(5, 2),
     csat_score        NUMERIC(5, 2),
     nps_score         NUMERIC(5, 2),
-    renewal_score     NUMERIC(5, 2),
+    onboarding_score  NUMERIC(5, 2),
     overall_score     NUMERIC(5, 2),
     health_status     VARCHAR(20),           -- Healthy / Monitor / At Risk / Critical
+    risk_drivers      TEXT,                  -- human-readable "why" for the score
     PRIMARY KEY (account_id, score_date)
 );
 

@@ -8,14 +8,14 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-csops_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-csops_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-csops_admin}
+      POSTGRES_DB: csops
     ports:
       - "5432:5432"
     volumes:
       - csops_pgdata:/var/lib/postgresql/data
       - ./sql:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-csops_admin}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-csops_admin} -d csops"]
       interval: 5s
       timeout: 5s
       retries: 5

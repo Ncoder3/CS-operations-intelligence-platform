@@ -12,6 +12,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy import text
 
 load_dotenv()
 
@@ -35,6 +36,10 @@ def main():
     engine = create_engine(DATABASE_URL)
 
     with engine.connect() as conn:
+        # Wipe old data in correct order to respect foreign key constraints
+        conn.execute(text("TRUNCATE TABLE action_center, health_scores, renewals, surveys, product_usage, support_tickets, customer_success, opportunities, contacts, accounts CASCADE;"))
+        conn.commit()
+
         for csv_file, table_name in TABLES:
             path = os.path.join(DATA_DIR, csv_file)
             if not os.path.exists(path):
