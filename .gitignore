@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Env
+.env
+
+# Data (keep repo light — generated data is reproducible via scripts)
+data/generated/*.csv
+data/raw/*
+
+# Power BI temp files
+*.pbix.bak
+~$*.pbix
+
+# OS / editor
+.DS_Store
+.vscode/settings.json
+
+# Logs
+*.log
