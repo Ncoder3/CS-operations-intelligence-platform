@@ -22,10 +22,14 @@ automated risk detection — not just a chart on top of a spreadsheet.
 
 - [x] **Phase 1 — Data foundation**: relational schema, synthetic data
       generator with correlated risk patterns, Postgres loader.
-- [ ] **Phase 2 — Intelligence layer**: data quality checks, health score
-      engine, risk/churn detection.
-- [ ] **Phase 3 — Reporting**: Power BI dashboards (Executive Overview,
-      Customer Health, CSM Performance).
+- [x] **Phase 2 — Intelligence layer**: data quality checks, health score
+      engine, risk/churn detection, Action Center. Validated: churned
+      accounts score 36 pts lower on average than renewed ones (see
+      `docs/decisions/002-scoring-engine.md`).
+- [ ] **Phase 3 — Reporting**: SQL reporting views validated against live
+      data (see `docs/decisions/003-reporting-views.md`), Power BI dashboards
+      (Executive Overview, Customer Health, CSM Performance). Setup guide:
+      `docs/powerbi_setup.md`.
 - [ ] **Phase 4 — Automation**: scheduled recalculation, SLA breach
       detection, Action Center queue.
 - [ ] **v2 (future work)**: CSM workload/capacity planning, incentive
@@ -83,6 +87,34 @@ python src/etl/load_to_postgres.py
 ```bash
 docker exec -it csops_postgres psql -U csops_admin -d csops -c "SELECT account_status, COUNT(*) FROM accounts GROUP BY 1;"
 ```
+
+### 6. Run Phase 2: data quality + health scoring
+
+```bash
+python src/scoring/run_scoring.py
+```
+
+This reads all tables from Postgres, prints a Data Quality Score, computes
+health scores per account, writes them to `health_scores`, and populates
+`action_center` with recommended next steps for at-risk accounts.
+
+### 7. Run the test suite
+
+```bash
+pytest tests/test_phase2.py -v
+```
+
+Includes the key validation check: churned accounts must score meaningfully
+lower than renewed ones — proof the engine finds real signal, not noise.
+
+### 8. Phase 3: Power BI dashboards
+
+See [`docs/powerbi_setup.md`](docs/powerbi_setup.md) for the full connection
+guide, DAX measures, dashboard specs, and a validation checklist with the
+exact numbers your data should produce (e.g. SLA breach rate ≈ 43.6%,
+30 Critical accounts) — confirmed against this project's live dataset so
+you can catch a broken relationship in Power BI immediately instead of
+guessing.
 
 ## Project structure
 

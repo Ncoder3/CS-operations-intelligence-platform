@@ -22,3 +22,5 @@ services:
 
 volumes:
   csops_pgdata:
+
+  
