@@ -122,3 +122,22 @@ CREATE INDEX IF NOT EXISTS idx_tickets_account ON support_tickets(account_id);
 CREATE INDEX IF NOT EXISTS idx_usage_account_date ON product_usage(account_id, usage_date);
 CREATE INDEX IF NOT EXISTS idx_surveys_account ON surveys(account_id);
 CREATE INDEX IF NOT EXISTS idx_renewals_account ON renewals(account_id);
+
+-- ============================================================
+-- Phase 4: automation run audit log
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS automation_runs (
+    run_id                SERIAL PRIMARY KEY,
+    run_started_at        TIMESTAMP,
+    run_completed_at      TIMESTAMP,
+    status                VARCHAR(20),         -- Success / Failed
+    data_quality_score    NUMERIC(5, 2),
+    total_accounts        INTEGER,
+    healthy_count         INTEGER,
+    monitor_count         INTEGER,
+    at_risk_count         INTEGER,
+    critical_count        INTEGER,
+    action_items_created  INTEGER,
+    error_message         TEXT
+);

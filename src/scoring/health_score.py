@@ -55,18 +55,41 @@ def _clip(x, lo=0, hi=100):
 
 
 def score_engagement(usage_df: pd.DataFrame) -> pd.DataFrame:
-    """Compares last 3 months of usage vs first 3 months per account."""
+    """
+    Compares last 3 months of usage vs first 3 months per account.
+
+    Fixed bug (previously used rank(pct=True) within each account's own
+    12-month window): ranking only 12 points forces them onto a fixed
+    1/12..12/12 ladder regardless of how much the raw numbers actually
+    moved, so small random noise around a flat trend got amplified into
+    a fake near-100% swing. That's why the score distribution used to
+    collapse almost entirely into 0 or 100 with almost nothing between.
+
+    Fix: normalize each metric against the account's own mean (so a
+    session count of 450 in a account averaging 400 is treated as
+    "12.5% above its own normal," not compared to twelve arbitrary rank
+    slots), then compare early vs. late window on that continuous scale.
+    """
     results = []
     for account_id, g in usage_df.sort_values("usage_date").groupby("account_id"):
         g = g.reset_index(drop=True)
         if len(g) < 4:
             results.append({"account_id": account_id, "engagement_score": 60.0})  # insufficient history -> neutral
             continue
-        g["index_val"] = g["sessions"].rank(pct=True) * 0.4 + \
-                          g["active_users"].rank(pct=True) * 0.4 + \
-                          g["feature_usage_pct"].rank(pct=True) * 0.2
-        early = g.iloc[: max(1, len(g) // 4)]["index_val"].mean()
-        late = g.iloc[-max(1, len(g) // 4):]["index_val"].mean()
+
+        sessions_mean = g["sessions"].mean()
+        users_mean = g["active_users"].mean()
+        feature_mean = g["feature_usage_pct"].mean()
+
+        g["index_val"] = (
+            (g["sessions"] / sessions_mean if sessions_mean else 1.0) * 0.4
+            + (g["active_users"] / users_mean if users_mean else 1.0) * 0.4
+            + (g["feature_usage_pct"] / feature_mean if feature_mean else 1.0) * 0.2
+        )
+
+        k = max(1, len(g) // 4)
+        early = g.iloc[:k]["index_val"].mean()
+        late = g.iloc[-k:]["index_val"].mean()
         pct_change = 0.0 if early == 0 else (late - early) / (early + 1e-9)
         score = _clip(50 + pct_change * 150)
         results.append({"account_id": account_id, "engagement_score": round(score, 2)})

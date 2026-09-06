@@ -7,15 +7,6 @@ Usage:
     python src/etl/load_to_postgres.py
 """
 
-"""
-Loads generated CSVs into PostgreSQL (assumes docker-compose postgres is running
-and sql/schema.sql has already created the tables — it runs automatically on
-first container start via docker-entrypoint-initdb.d).
-
-Usage:
-    python src/etl/load_to_postgres.py
-"""
-
 import os
 
 import pandas as pd

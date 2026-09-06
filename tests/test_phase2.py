@@ -85,6 +85,26 @@ def test_status_classification_matches_thresholds():
     assert classify_status(10) == "Critical"
 
 
+def test_engagement_score_is_not_bimodal(tables):
+    """
+    Regression test for a bug where score_engagement() used rank(pct=True)
+    within each account's own 12-month window. Ranking only 12 points forces
+    them onto a fixed ladder regardless of actual magnitude of change, so
+    small noise around a flat trend got amplified into a fake ~100% swing —
+    collapsing the score into almost only 0s and 100s. A healthy scoring
+    distribution should have a meaningful share of accounts strictly
+    between the extremes.
+    """
+    from scoring.health_score import score_engagement
+    result = score_engagement(tables["product_usage"])
+    extreme = ((result["engagement_score"] == 0) | (result["engagement_score"] == 100)).sum()
+    middle = len(result) - extreme
+    assert middle / len(result) > 0.3, (
+        f"Only {middle}/{len(result)} accounts scored strictly between 0 and 100 — "
+        f"engagement scoring may have regressed to the rank-based bug."
+    )
+
+
 def test_status_distribution_is_not_degenerate(scores):
     """If every account lands in one bucket, the scoring formula is broken
     (e.g. a component dominating or a bug collapsing variance)."""
