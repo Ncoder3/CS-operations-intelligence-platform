@@ -1,24 +1,22 @@
 """
-Loads generated CSVs into PostgreSQL (assumes docker-compose postgres is running
-and sql/schema.sql has already created the tables — it runs automatically on
-first container start via docker-entrypoint-initdb.d).
+Loads generated CSVs into PostgreSQL using TRUNCATE CASCADE to support 
+idempotent pipeline re-runs without dropping schema constraints or views.
 
 Usage:
-    python src/etl/load_to_postgres.py
+    python -m src.etl.load_to_postgres
 """
 
 import os
-
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://csops_admin:csops_pass@localhost:5432/csops")
 DATA_DIR = "data/generated"
 
-# (csv filename, table name) — order matters: parents before children
+# Order matters: Parents must come before children for insertions
 TABLES = [
     ("accounts.csv", "accounts"),
     ("contacts.csv", "contacts"),
@@ -34,7 +32,13 @@ TABLES = [
 def main():
     engine = create_engine(DATABASE_URL)
 
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        print("Clearing existing data from target tables...")
+        # Truncate tables in reverse order to respect foreign key constraints safely
+        for _, table_name in reversed(TABLES):
+            conn.execute(text(f"TRUNCATE TABLE {table_name} CASCADE;"))
+
+        # Append fresh data into existing schema structure
         for csv_file, table_name in TABLES:
             path = os.path.join(DATA_DIR, csv_file)
             if not os.path.exists(path):
@@ -45,7 +49,7 @@ def main():
             df.to_sql(table_name, conn, if_exists="append", index=False)
             print(f"Loaded {len(df)} rows into {table_name}")
 
-    print("Done.")
+    print("ETL Ingestion Completed Successfully.")
 
 
 if __name__ == "__main__":
