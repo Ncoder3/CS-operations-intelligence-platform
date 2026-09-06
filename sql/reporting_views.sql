@@ -144,3 +144,10 @@ SELECT
     ac.created_at
 FROM action_center ac
 JOIN accounts a ON a.account_id = ac.account_id;
+
+
+-- Latest CSM workload snapshot, for the capacity planning dashboard
+CREATE OR REPLACE VIEW vw_csm_workload_latest AS
+SELECT w.*
+FROM csm_workload w
+WHERE w.run_date = (SELECT MAX(run_date) FROM csm_workload);

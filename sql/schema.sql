@@ -141,3 +141,20 @@ CREATE TABLE IF NOT EXISTS automation_runs (
     action_items_created  INTEGER,
     error_message         TEXT
 );
+
+-- ============================================================
+-- v2: CSM workload / capacity planning
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS csm_workload (
+    csm_owner           VARCHAR(100),
+    run_date            DATE,
+    total_accounts      INTEGER,
+    at_risk_accounts    INTEGER,
+    critical_accounts   INTEGER,
+    open_tickets        INTEGER,
+    upcoming_renewals   INTEGER,
+    workload_score      NUMERIC(6, 1),
+    workload_category   VARCHAR(20),           -- Balanced / Elevated / High / Overloaded
+    PRIMARY KEY (csm_owner, run_date)
+);

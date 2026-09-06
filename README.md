@@ -30,10 +30,17 @@ automated risk detection — not just a chart on top of a spreadsheet.
       data (see `docs/decisions/003-reporting-views.md`), Power BI dashboards
       (Executive Overview, Customer Health, CSM Performance). Setup guide:
       `docs/powerbi_setup.md`.
-- [ ] **Phase 4 — Automation**: scheduled recalculation, SLA breach
-      detection, Action Center queue.
-- [ ] **v2 (future work)**: CSM workload/capacity planning, incentive
-      scorecards, SLA control tower.
+- [x] **Phase 4 — Automation**: scheduled recalculation (`src/automation/scheduler.py`),
+      delta-aware digest reports that only alert on what changed
+      (`src/automation/notifier.py`), audit log of every run
+      (`automation_runs` table). Found and fixed 3 real bugs during
+      integration testing — see `docs/decisions/004-phase4-integration-bugs.md`.
+- [x] **v2a — CSM Workload & Capacity Planning**: weighted workload score
+      per CSM (`src/scoring/workload.py`), quartile-based Balanced /
+      Elevated / High / Overloaded categories, written to `csm_workload`
+      each run. Directly answers "which CSMs need headcount support" —
+      see `docs/decisions/005-workload-planning.md`.
+- [ ] **v2b (future work)**: incentive scorecards, SLA control tower.
 
 Each phase gets its own branch, PR, and a short write-up in `docs/decisions/`.
 
@@ -88,15 +95,22 @@ python src/etl/load_to_postgres.py
 docker exec -it csops_postgres psql -U csops_admin -d csops -c "SELECT account_status, COUNT(*) FROM accounts GROUP BY 1;"
 ```
 
-### 6. Run Phase 2: data quality + health scoring
+### 6. Run Phase 2 + v2: data quality, health scoring, workload planning
+
+Apply the workload table migration first (once, on your existing volume):
+```bash
+docker cp sql/migrations/002_add_csm_workload.sql csops_postgres:/tmp/m2.sql
+docker exec -it csops_postgres psql -U csops_admin -d csops -f /tmp/m2.sql
+```
 
 ```bash
 python src/scoring/run_scoring.py
 ```
 
 This reads all tables from Postgres, prints a Data Quality Score, computes
-health scores per account, writes them to `health_scores`, and populates
-`action_center` with recommended next steps for at-risk accounts.
+health scores per account, writes them to `health_scores`, populates
+`action_center` with recommended next steps for at-risk accounts, and
+writes CSM workload/capacity scores to `csm_workload`.
 
 ### 7. Run the test suite
 
@@ -116,6 +130,41 @@ exact numbers your data should produce (e.g. SLA breach rate ≈ 43.6%,
 you can catch a broken relationship in Power BI immediately instead of
 guessing.
 
+### 9. Phase 4: automation & scheduling
+
+Apply the new `automation_runs` table (same reason as the views — Docker's
+init scripts won't re-run automatically on your existing volume):
+```bash
+docker cp sql/migrations/001_add_automation_runs.sql csops_postgres:/tmp/m1.sql
+docker exec -it csops_postgres psql -U csops_admin -d csops -f /tmp/m1.sql
+```
+
+Run the full pipeline (quality checks -> scoring -> action center -> digest)
+once:
+```bash
+python src/automation/scheduler.py --once
+```
+This writes a Markdown digest to `data/reports/` that only flags **what
+changed** since the last run (newly critical accounts, significant score
+drops, action items due soon) — not the same list every day. It also logs
+every run's outcome to the `automation_runs` table, success or failure.
+
+**To schedule it daily**, on Windows use Task Scheduler (recommended — no
+process needs to stay running):
+1. Task Scheduler → Create Basic Task → Daily
+2. Action: Start a program → `python.exe` (from your `venv\Scripts\`)
+3. Arguments: `src\automation\scheduler.py --once`
+4. Start in: your project folder
+
+Or run it in the foreground for a live demo:
+```bash
+python src/automation/scheduler.py --daemon --time 06:00
+```
+
+Optional email alerts: set `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`,
+`ALERT_EMAIL_TO` in `.env`. Without them, the digest file is still written —
+email is silently skipped, not required.
+
 ## Project structure
 
 ```
@@ -125,7 +174,7 @@ guessing.
 │   ├── data_generation/      # Synthetic data generator
 │   ├── etl/                  # Load scripts
 │   ├── data_quality/         # Phase 2
-│   ├── scoring/              # Phase 2: health score engine
+│   ├── scoring/              # Phase 2: health score engine, v2: workload
 │   └── automation/           # Phase 4: scheduler, alerts, Action Center
 ├── dashboards/                # Power BI files + exported screenshots
 ├── docs/

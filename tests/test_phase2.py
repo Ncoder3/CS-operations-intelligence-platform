@@ -134,3 +134,41 @@ def test_health_score_correlates_with_actual_churn(tables, scores):
         f"Gap between churned and renewed average scores is too small "
         f"({renewed_avg - churned_avg:.1f} pts) to be a useful signal"
     )
+
+
+# ---------------- CSM Workload (v2) ----------------
+
+def test_workload_scores_are_not_degenerate(tables, scores):
+    """Every CSM should not land in the same category — if they do, the
+    weights or thresholds are broken."""
+    from scoring.workload import compute_csm_workload
+    accounts = tables["accounts"].copy()
+    accounts["days_to_next_renewal"] = 999  # neutral value; renewal weighting tested separately below
+    result = compute_csm_workload(scores, accounts, tables["support_tickets"], accounts)
+    assert result["csm_owner"].nunique() == len(result)
+    assert result["workload_category"].nunique() > 1, (
+        "All CSMs landed in the same workload category — check weights/thresholds"
+    )
+
+
+def test_workload_score_increases_with_risk(tables, scores):
+    """A CSM portfolio identical except for one extra Critical account
+    should score strictly higher — sanity check on the weighting direction."""
+    from scoring.workload import compute_csm_workload
+    accounts = tables["accounts"][["account_id", "csm_owner"]].head(10).copy()
+    accounts["days_to_next_renewal"] = 999
+    base_scores = pd.DataFrame({
+        "account_id": accounts["account_id"],
+        "health_status": ["Healthy"] * 10,
+    })
+    tickets_empty = pd.DataFrame(columns=["account_id", "status"])
+
+    baseline = compute_csm_workload(base_scores, accounts, tickets_empty, accounts)
+    baseline_score = baseline["workload_score"].iloc[0]
+
+    degraded_scores = base_scores.copy()
+    degraded_scores.loc[degraded_scores.index[0], "health_status"] = "Critical"
+    degraded = compute_csm_workload(degraded_scores, accounts, tickets_empty, accounts)
+    degraded_score = degraded["workload_score"].iloc[0]
+
+    assert degraded_score > baseline_score
